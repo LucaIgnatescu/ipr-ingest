@@ -51,12 +51,13 @@ func setup_maps(lines [][]string, id_email_map Index, email_id_map Index) error 
 	return nil
 }
 
-func constructPreference(row []string) MusicPreference {
+func constructPreference(id string, row []string) MusicPreference {
 	mp := MusicPreference{}
 	v := reflect.ValueOf(mp)
 	hours, err := strconv.ParseUint(row[54], 10, 32)
 	if err != nil {
-		mp.Hours = 0
+		fmt.Println(row[54])
+		mp.Hours = 0 // NOTE: The only error I noticed was a missing value. I will just assign to 0
 	} else {
 		mp.Hours = uint(hours)
 	}
@@ -70,10 +71,11 @@ func constructPreference(row []string) MusicPreference {
 		}
 	}
 	mp.Other = row[genreStartRow+nGenres]
+	mp.ParticipandId = id
 	return mp
 }
 
-func constructInstruments(row []string) []Instrument {
+func constructInstruments(id string, row []string) []Instrument {
 	instruments := make([]Instrument, 0)
 	nInstruments := 5
 	startingRow := 33
@@ -86,8 +88,9 @@ func constructInstruments(row []string) []Instrument {
 		instrument := Instrument{}
 		instrument.Instrument = row[j]
 		instrument.Experience = row[j+1]
-		instrument.Still_Playing = row[j+2]
+		instrument.StillPlaying = row[j+2]
 		instrument.Choice = row[j+3]
+		instrument.ParticipandId = id
 		instruments = append(instruments, instrument)
 	}
 	return instruments
@@ -97,7 +100,6 @@ func upload_rows(rows [][]string, id_email_map Index, email_id_map Index) [][]st
 	failed := make([][]string, 0)
 	instruments := make([]Instrument, 0)
 	preferences := make([]MusicPreference, 0)
-	fmt.Println(len(rows))
 	for _, row := range rows {
 		id := row[9]
 		if _, exists := id_email_map[id]; !exists {
@@ -107,14 +109,14 @@ func upload_rows(rows [][]string, id_email_map Index, email_id_map Index) [][]st
 				continue
 			}
 		}
-		mp := constructPreference(row)
-		new_instruments := constructInstruments(row)
+		mp := constructPreference(id, row)
+		new_instruments := constructInstruments(id, row)
 		instruments = append(instruments, new_instruments...)
 		preferences = append(preferences, mp)
 	}
-	fmt.Println(len(instruments))
-	fmt.Println(len(preferences))
-	fmt.Println(len(failed))
+	fmt.Printf("Parsed %v instruments\n", len(instruments))
+	fmt.Printf("Parsed %v preferences\n", len(preferences))
+	fmt.Printf("Failed to parse %v/%v rows\n", len(failed), len(rows))
 	return failed
 }
 
@@ -146,5 +148,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	upload_rows(lines, id_email_map, email_id_map)
+	_ = upload_rows(lines, id_email_map, email_id_map)
 }
