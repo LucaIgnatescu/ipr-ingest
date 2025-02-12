@@ -12,7 +12,7 @@ const DATABASE = "machine2.db"
 
 type Instrument struct {
 	Instrument    string
-	Experience    uint
+	Experience    string
 	Still_Playing string
 	Choice        string
 }

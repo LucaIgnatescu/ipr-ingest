@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"reflect"
@@ -50,13 +51,14 @@ func setup_maps(lines [][]string, id_email_map Index, email_id_map Index) error 
 	return nil
 }
 
-func constructPreference(row []string) (MusicPreference, error) {
+func constructPreference(row []string) MusicPreference {
 	mp := MusicPreference{}
 	v := reflect.ValueOf(mp)
 	hours, err := strconv.ParseUint(row[54], 10, 32)
-	mp.Hours = uint(hours)
 	if err != nil {
-		return mp, err
+		mp.Hours = 0
+	} else {
+		mp.Hours = uint(hours)
 	}
 	mp.Importance = row[55]
 	mp.Lyrics = row[56]
@@ -68,10 +70,10 @@ func constructPreference(row []string) (MusicPreference, error) {
 		}
 	}
 	mp.Other = row[genreStartRow+nGenres]
-	return mp, nil
+	return mp
 }
 
-func constructInstruments(row []string) ([]Instrument, error) {
+func constructInstruments(row []string) []Instrument {
 	instruments := make([]Instrument, 0)
 	nInstruments := 5
 	startingRow := 33
@@ -83,22 +85,19 @@ func constructInstruments(row []string) ([]Instrument, error) {
 		}
 		instrument := Instrument{}
 		instrument.Instrument = row[j]
-		experience, err := strconv.ParseUint(row[j+1], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		instrument.Experience = uint(experience)
+		instrument.Experience = row[j+1]
 		instrument.Still_Playing = row[j+2]
 		instrument.Choice = row[j+3]
 		instruments = append(instruments, instrument)
 	}
-	return instruments, nil
+	return instruments
 }
 
 func upload_rows(rows [][]string, id_email_map Index, email_id_map Index) [][]string {
 	failed := make([][]string, 0)
-	instruments := make([]Instrument, 100)
-	preferences := make([]MusicPreference, 100)
+	instruments := make([]Instrument, 0)
+	preferences := make([]MusicPreference, 0)
+	fmt.Println(len(rows))
 	for _, row := range rows {
 		id := row[9]
 		if _, exists := id_email_map[id]; !exists {
@@ -107,21 +106,16 @@ func upload_rows(rows [][]string, id_email_map Index, email_id_map Index) [][]st
 				failed = append(failed, row)
 				continue
 			}
-			mp, err := constructPreference(row)
-			if err != nil {
-				failed = append(failed, row)
-				continue
-			}
-			new_instruments, err := constructInstruments(row)
-			if err != nil {
-				failed = append(failed, row)
-				continue
-			}
-			instruments = append(instruments, new_instruments...)
-			preferences = append(preferences, mp)
 		}
+		mp := constructPreference(row)
+		new_instruments := constructInstruments(row)
+		instruments = append(instruments, new_instruments...)
+		preferences = append(preferences, mp)
 	}
-	return nil
+	fmt.Println(len(instruments))
+	fmt.Println(len(preferences))
+	fmt.Println(len(failed))
+	return failed
 }
 
 func main() {
