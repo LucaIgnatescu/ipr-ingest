@@ -1,5 +1,6 @@
 music_data.csv
 codes.csv
+*.csv
 machine2.db
 .DS_Store
 notes.md

@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -35,21 +34,21 @@ func parseFile(fileName string) ([][]string, error) {
 	return records, nil
 }
 
-func setupMaps(lines [][]string, id_email_map Index, email_id_map Index) error {
+func setupMaps(lines [][]string, id_email_map Index, email_id_map Index) [][]string {
+	ignored := make([][]string, 0)
 	for _, line := range lines {
-		if len(line) < 2 {
-			return errors.New("Each line should have at least 2 entries")
-		}
-
 		id := line[0]
 		email := line[1]
-		// if _, exists := id_email_map[id]; exists {
-		// 	fmt.Printf("Found duplicate id %v at row %v with email %v\n", id, i, email)
-		// }
+		_, id_exists := id_email_map[id]
+		_, email_exists := email_id_map[email]
+		if id_exists || email_exists {
+			ignored = append(ignored, line)
+			continue
+		}
 		id_email_map[id] = email
 		email_id_map[email] = id
 	}
-	return nil
+	return ignored
 }
 
 func constructPreference(id string, row []string) MusicPreference {
@@ -137,6 +136,15 @@ func uploadRows(db *sql.DB, rows [][]string, id_email_map Index, email_id_map In
 	return failed
 }
 
+func writeRows(rows [][]string, fileName string) error {
+	file, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+	writer := csv.NewWriter(file)
+	return writer.WriteAll(rows)
+}
+
 func main() {
 	id_email_map := make(Index)
 	email_id_map := make(Index)
@@ -146,10 +154,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = setupMaps(lines[1:], id_email_map, email_id_map)
-	if err != nil {
-		log.Fatal(err)
-	}
+	unparsed := setupMaps(lines[1:], id_email_map, email_id_map)
+	writeRows(unparsed, "code_unparsed.csv")
 
 	db, err := connectDB()
 	if err != nil {
@@ -164,5 +170,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	_ = uploadRows(db, lines[2:], id_email_map, email_id_map)
+	unparsed = uploadRows(db, lines[2:], id_email_map, email_id_map)
+	writeRows(unparsed, "music_data_unparsed.csv")
 }
