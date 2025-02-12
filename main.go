@@ -53,7 +53,7 @@ func setup_maps(lines [][]string, id_email_map Index, email_id_map Index) error 
 
 func constructPreference(id string, row []string) MusicPreference {
 	mp := MusicPreference{}
-	v := reflect.ValueOf(mp)
+	v := reflect.ValueOf(&mp).Elem()
 	hours, err := strconv.ParseUint(row[54], 10, 32)
 	if err != nil {
 		fmt.Println(row[54])
@@ -66,9 +66,7 @@ func constructPreference(id string, row []string) MusicPreference {
 	genreStartRow := 57
 	nGenres := 27
 	for i := 0; i < nGenres; i++ {
-		if v.Field(3 + i).CanSet() {
-			v.Field(3 + i).SetBool(len(row[genreStartRow+i]) > 0)
-		}
+		v.Field(4 + i).SetBool(len(row[genreStartRow+i]) > 0)
 	}
 	mp.Other = row[genreStartRow+nGenres]
 	mp.ParticipandId = id
