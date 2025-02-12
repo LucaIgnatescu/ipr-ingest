@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log"
 	"os"
+	"reflect"
+	"strconv"
 )
 
 const (
@@ -48,17 +50,94 @@ func setup_maps(lines [][]string, id_email_map Index, email_id_map Index) error 
 	return nil
 }
 
+func constructPreference(row []string) (MusicPreference, error) {
+	mp := MusicPreference{}
+	v := reflect.ValueOf(mp)
+	hours, err := strconv.ParseUint(row[54], 10, 32)
+	mp.Hours = uint(hours)
+	if err != nil {
+		return mp, err
+	}
+	mp.Importance = row[55]
+	mp.Lyrics = row[56]
+	genreStartRow := 57
+	nGenres := 27
+	for i := 0; i < nGenres; i++ {
+		if v.Field(3 + i).CanSet() {
+			v.Field(3 + i).SetBool(len(row[genreStartRow+i]) > 0)
+		}
+	}
+	mp.Other = row[genreStartRow+nGenres]
+	return mp, nil
+}
+
+func constructInstruments(row []string) ([]Instrument, error) {
+	instruments := make([]Instrument, 0)
+	nInstruments := 5
+	startingRow := 33
+	width := 4
+	for i := 0; i < nInstruments; i++ {
+		j := startingRow + width*i
+		if len(row[j]) == 0 {
+			break
+		}
+		instrument := Instrument{}
+		instrument.Instrument = row[j]
+		experience, err := strconv.ParseUint(row[j+1], 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		instrument.Experience = uint(experience)
+		instrument.Still_Playing = row[j+2]
+		instrument.Choice = row[j+3]
+		instruments = append(instruments, instrument)
+	}
+	return instruments, nil
+}
+
+func upload_rows(rows [][]string, id_email_map Index, email_id_map Index) [][]string {
+	failed := make([][]string, 0)
+	instruments := make([]Instrument, 100)
+	preferences := make([]MusicPreference, 100)
+	for _, row := range rows {
+		id := row[9]
+		if _, exists := id_email_map[id]; !exists {
+			email := row[4]
+			if id, exists = email_id_map[email]; !exists {
+				failed = append(failed, row)
+				continue
+			}
+			mp, err := constructPreference(row)
+			if err != nil {
+				failed = append(failed, row)
+				continue
+			}
+			new_instruments, err := constructInstruments(row)
+			if err != nil {
+				failed = append(failed, row)
+				continue
+			}
+			instruments = append(instruments, new_instruments...)
+			preferences = append(preferences, mp)
+		}
+	}
+	return nil
+}
+
 func main() {
 	id_email_map := make(Index)
 	email_id_map := make(Index)
 
-	lines, err := parse_file("codes.csv")
+	lines, err := parse_file(CODES_FILE)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if setup_maps(lines, id_email_map, email_id_map) != nil {
+
+	err = setup_maps(lines, id_email_map, email_id_map)
+	if err != nil {
 		log.Fatal(err)
 	}
+
 	db, err := connect_db()
 	if err != nil {
 		log.Fatal(err)
@@ -69,4 +148,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+	lines, err = parse_file(MUSIC_DATA_FILE)
+	if err != nil {
+		log.Fatal(err)
+	}
+	upload_rows(lines, id_email_map, email_id_map)
 }
