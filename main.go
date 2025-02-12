@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"sync"
 )
 
 const (
@@ -17,7 +19,7 @@ const (
 
 type Index map[string]string
 
-func parse_file(fileName string) ([][]string, error) {
+func parseFile(fileName string) ([][]string, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
@@ -30,11 +32,10 @@ func parse_file(fileName string) ([][]string, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return records, nil
 }
 
-func setup_maps(lines [][]string, id_email_map Index, email_id_map Index) error {
+func setupMaps(lines [][]string, id_email_map Index, email_id_map Index) error {
 	for _, line := range lines {
 		if len(line) < 2 {
 			return errors.New("Each line should have at least 2 entries")
@@ -94,7 +95,7 @@ func constructInstruments(id string, row []string) []Instrument {
 	return instruments
 }
 
-func upload_rows(rows [][]string, id_email_map Index, email_id_map Index) [][]string {
+func uploadRows(db *sql.DB, rows [][]string, id_email_map Index, email_id_map Index) [][]string {
 	failed := make([][]string, 0)
 	instruments := make([]Instrument, 0)
 	preferences := make([]MusicPreference, 0)
@@ -115,6 +116,24 @@ func upload_rows(rows [][]string, id_email_map Index, email_id_map Index) [][]st
 	fmt.Printf("Parsed %v instruments\n", len(instruments))
 	fmt.Printf("Parsed %v preferences\n", len(preferences))
 	fmt.Printf("Failed to parse %v/%v rows\n", len(failed), len(rows))
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		if err := insertMusicPreferences(db, preferences); err != nil {
+			panic(err)
+		}
+		fmt.Println("Inserted music preferences")
+	}()
+	go func() {
+		defer wg.Done()
+		if err := insertInstruments(db, instruments); err != nil {
+			panic(err)
+		}
+		fmt.Println("Inserted instruments")
+	}()
+	wg.Wait()
 	return failed
 }
 
@@ -122,17 +141,17 @@ func main() {
 	id_email_map := make(Index)
 	email_id_map := make(Index)
 
-	lines, err := parse_file(CODES_FILE)
+	lines, err := parseFile(CODES_FILE)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = setup_maps(lines, id_email_map, email_id_map)
+	err = setupMaps(lines[1:], id_email_map, email_id_map)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	db, err := connect_db()
+	db, err := connectDB()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,10 +160,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	lines, err = parse_file(MUSIC_DATA_FILE)
+	lines, err = parseFile(MUSIC_DATA_FILE)
 	if err != nil {
 		log.Fatal(err)
 	}
-	_ = upload_rows(lines, id_email_map, email_id_map)
+	_ = uploadRows(db, lines[2:], id_email_map, email_id_map)
 }

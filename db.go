@@ -91,7 +91,6 @@ CREATE TABLE music_preference (
   `
 const QUERY_CREATE_INSTRUMENT = `
 CREATE TABLE instrument (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     participantId TEXT,
     instrument TEXT,
     experience TEXT,
@@ -105,7 +104,7 @@ const QUERY_RESET_TABLES = `
   DROP TABLE IF EXISTS music_preference;
   `
 
-func connect_db() (*sql.DB, error) {
+func connectDB() (*sql.DB, error) {
 	fmt.Println("Connecting to database...")
 	db, err := sql.Open("sqlite3", DATABASE)
 	if err != nil {
